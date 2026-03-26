@@ -3,17 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TIEA IPTV Auto Main/Backup</title>
+<title>TIEA IPTV Smart Ultimate + Auto Refresh</title>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 <style>
 body{margin:0;font-family:sans-serif;background:#0b0f1a;color:#fff;}
-.container{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding:10px;}
+.tabs{display:flex;gap:8px;padding:10px;justify-content:center;}
+.tab{padding:6px 14px;border-radius:20px;border:none;background:#1f2a44;color:#aaa;cursor:pointer;font-weight:bold;transition:.2s;}
+.tab.active{background:#00c853;color:#000;}
+.tab:hover{background:#2e3b5f;color:#fff;}
+.section-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;padding:10px;}
 .card{position:relative;background:#1f2a44;border-radius:12px;overflow:hidden;cursor:pointer;transition:.2s;}
 .card:hover{transform:scale(1.02);}
 .channel-logo img{width:100%;height:100px;object-fit:contain;}
-.servers{display:flex;justify-content:center;gap:5px;padding:5px;}
+.badge-hd{position:absolute;bottom:8px;left:8px;background:#00e5ff;color:#000;font-size:10px;font-weight:bold;padding:3px 6px;border-radius:6px;}
+.servers{display:flex;justify-content:center;gap:5px;padding:5px;flex-wrap:wrap;}
 .servers button{padding:5px 8px;border:none;border-radius:6px;background:#2e3b5f;color:#aaa;cursor:pointer;transition:.2s;}
 .servers button.active{background:#00c853;color:#000;}
+.server-time{font-size:9px;color:#0ff;margin-left:4px;}
 #playerBox{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;max-width:1000px;aspect-ratio:16/9;background:#000;display:none;z-index:9999;border-radius:12px;overflow:hidden;}
 #playerOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;z-index:9998;}
 .close{position:absolute;top:8px;right:8px;z-index:10000;background:red;border:none;color:#fff;padding:4px 8px;border-radius:6px;cursor:pointer;}
@@ -22,7 +28,13 @@ video{width:100%;height:100%;}
 </head>
 <body>
 
-<div class="container" id="list"></div>
+<div class="tabs">
+    <button class="tab active" onclick="switchTab('📅 วันนี้')">วันนี้</button>
+    <button class="tab" onclick="switchTab('📅 พรุ่งนี้')">พรุ่งนี้</button>
+    <button class="tab" onclick="switchTab('📅 วันอื่นๆ')">อื่นๆ</button>
+</div>
+
+<div id="list"></div>
 <div id="playerOverlay" onclick="closePlayer()"></div>
 
 <div id="playerBox">
@@ -32,67 +44,175 @@ video{width:100%;height:100%;}
 
 <script>
 const PLAYLIST_URL = "https://raw.githubusercontent.com/tiea9999/iptv/refs/heads/main/playlist.json";
+let all = [];
+let currentTab = "📅 วันนี้";
+let cacheFastest = {}; // จำ server เร็วที่สุด
+const video=document.getElementById("video");
 
-let playlist = [];
-let currentChannelIndex = 0;
+// TAB
+function switchTab(tab){
+    currentTab = tab;
+    document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+    event.target.classList.add("active");
+    render();
+}
 
-async function loadPlaylist(){
+// LOAD JSON
+async function load(){
     try{
         const res = await fetch(PLAYLIST_URL+"?t="+Date.now());
-        playlist = await res.json();
-        renderChannels();
-    }catch(err){
-        console.error("โหลด playlist ไม่ได้:",err);
+        const json = await res.json();
+        all = await parse(json);
+        render();
+    }catch(e){
+        console.error("โหลด playlist ล้มเหลว:", e);
     }
 }
 
-function renderChannels(){
-    const container = document.getElementById("list");
-    container.innerHTML="";
-    playlist.forEach((ch,chIdx)=>{
-        const card = document.createElement("div");
-        card.className="card";
-        card.innerHTML=`
-            <div class="channel-logo"><img src="${ch.logo}" onerror="this.parentElement.style.display='none'"></div>
-            <div class="servers">
-                ${ch.servers.map((s,i)=>`<button onclick="playServer(${chIdx},${i},event)">${i==0?'Main':'Backup '+i}</button>`).join("")}
-            </div>
-        `;
-        container.appendChild(card);
-    });
+// PARSE
+async function parse(data){
+    let arr=[];
+    async function walk(g){
+        if(g.servers){
+            arr.push({
+                title:g.title,
+                teams:getTeams(g.title),
+                time:getTime(g.title),
+                dateGroup:getDateGroup(g.title),
+                logo:g.logo||"",
+                servers:g.servers
+            });
+        }
+        if(g.groups){
+            for(const sub of g.groups) await walk(sub);
+        }
+    }
+    for(const g of data) await walk(g);
+    return arr;
 }
 
-const video = document.getElementById("video");
-function playServer(chIdx,srvIdx,event){
-    event.stopPropagation();
-    const servers = playlist[chIdx].servers;
-    currentChannelIndex = chIdx;
+// TEAM
+function getTeams(title){
+    let t=title.replace(/\(.*?\)/g,"").split("vs");
+    if(t.length<2) return ["Team A","Team B"];
+    return [t[0].trim(),t[1].trim()];
+}
 
+// TIME
+function getTime(name){
+    let m=name.match(/\d{2}:\d{2}/);
+    if(!m) return "--:--";
+    let [h,min]=m[0].split(":").map(Number);
+    return String(h).padStart(2,'0')+":"+String(min).padStart(2,'0');
+}
+
+// DATE GROUP
+function getDateGroup(name){
+    const now=new Date();
+    let hm=name.match(/(\d{2}):(\d{2})/);
+    if(!hm) return "อื่นๆ";
+    const matchDate=new Date(); matchDate.setHours(parseInt(hm[1]),parseInt(hm[2]),0,0);
+    if(matchDate<now) matchDate.setDate(matchDate.getDate()+1);
+    const today=new Date(); const tomorrow=new Date(); tomorrow.setDate(today.getDate()+1);
+    if(matchDate.toDateString()===today.toDateString()) return "📅 วันนี้";
+    else if(matchDate.toDateString()===tomorrow.toDateString()) return "📅 พรุ่งนี้";
+    else return "📅 วันอื่นๆ";
+}
+
+// RENDER
+function render(){
+    const list=document.getElementById("list");
+    list.innerHTML="";
+    const grouped={};
+    all.forEach(m=>{
+        const key=m.dateGroup||"อื่นๆ";
+        if(!grouped[key]) grouped[key]=[];
+        grouped[key].push(m);
+    });
+    const order=["📅 วันนี้","📅 พรุ่งนี้","📅 วันอื่นๆ"];
+    order.forEach(groupName=>{
+        if(groupName!==currentTab) return;
+        const section=document.createElement("div");
+        section.className="section-grid";
+        grouped[groupName].forEach((m,chIdx)=>{
+            const card=document.createElement("div");
+            card.className="card";
+            card.innerHTML=`
+                <div class="channel-logo"><img src="${m.logo}" onerror="this.parentElement.style.display='none'"></div>
+                <div class="badge-hd">HD</div>
+                <div class="servers">
+                    ${m.servers.map((s,i)=>`<button onclick="playSmart(${chIdx},${i},event)">${i==0?'Main':'Backup '+i}<span class="server-time" id="time-${chIdx}-${i}"></span></button>`).join("")}
+                </div>
+            `;
+            section.appendChild(card);
+        });
+        list.appendChild(section);
+    });
+    updateServerTimes(); // แสดง response time
+}
+
+// ตรวจสอบเวลาตอบสนอง server
+async function updateServerTimes(){
+    for(let chIdx=0; chIdx<all.length; chIdx++){
+        for(let srvIdx=0; srvIdx<all[chIdx].servers.length; srvIdx++){
+            const btnTime=document.getElementById(`time-${chIdx}-${srvIdx}`);
+            if(!btnTime) continue;
+            try{
+                const start=performance.now();
+                await fetch(all[chIdx].servers[srvIdx].url,{method:'HEAD',cache:'no-store'});
+                const duration=Math.round(performance.now()-start);
+                btnTime.textContent=` ${duration}ms`;
+            }catch{btnTime.textContent=" err";}
+        }
+    }
+    setTimeout(updateServerTimes,15000); // auto refresh ทุก 15 วินาที
+}
+
+// หา server เร็วที่สุด
+async function findFastest(servers){
+    let fastest=null; let fastestTime=Infinity;
+    for(const s of servers){
+        try{
+            const start=performance.now();
+            const res=await fetch(s.url,{method:'HEAD',cache:'no-store'});
+            if(res.ok){
+                const duration=performance.now()-start;
+                if(duration<fastestTime){fastestTime=duration; fastest=s;}
+            }
+        }catch{}
+    }
+    return fastest || servers[0];
+}
+
+// PLAYER
+async function playSmart(chIdx,srvIdx,event){
+    event.stopPropagation();
+    const servers=all[chIdx].servers;
     document.getElementById("playerBox").style.display="block";
     document.getElementById("playerOverlay").style.display="block";
-
-    // ปุ่ม active
     document.querySelectorAll(".servers button").forEach(b=>b.classList.remove("active"));
     event.target.classList.add("active");
 
-    let idx = srvIdx;
-    function tryPlay(){
-        const url = servers[idx]?.url;
-        if(!url) return;
+    let fastestServer=cacheFastest[servers[0].url];
+    if(!fastestServer){fastestServer=await findFastest(servers); cacheFastest[servers[0].url]=fastestServer;}
+
+    function tryPlay(urls){
+        if(!urls.length) return;
+        const url=urls.shift();
         if(Hls.isSupported()){
-            const hls = new Hls();
+            const hls=new Hls();
             hls.loadSource(url);
             hls.attachMedia(video);
             hls.on(Hls.Events.ERROR,(event,data)=>{
-                if(data.fatal){idx++; tryPlay();}
+                if(data.fatal){tryPlay(urls);}
             });
         }else{
-            video.src=url;
-            video.onerror=()=>{idx++; tryPlay();}
+            video.src=url; video.onerror=()=>{tryPlay(urls);}
         }
-        video.play().catch(()=>{idx++; tryPlay();});
+        video.play().catch(()=>{tryPlay(urls);});
     }
-    tryPlay();
+
+    tryPlay([fastestServer.url,...servers.filter(s=>s.url!==fastestServer.url).map(s=>s.url)]);
 }
 
 function closePlayer(){
@@ -101,8 +221,7 @@ function closePlayer(){
     video.pause();
 }
 
-loadPlaylist();
+load();
 </script>
-
 </body>
 </html>
