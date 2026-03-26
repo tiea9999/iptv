@@ -1,10 +1,10 @@
 #EXTM3U
 #EXTINF:-1 tvg-logo="https://api.bananamuffin.org/images/png/th-monomax01.png" group-title="Dooball",th-monomax01 (Main)
-https://sparkling-river-40f9.tawatchai250958.workers.dev/?url=https://sparkling-river-40f9.tawatchai250958.workers.dev/?url=https://love.sikoyo3159.workers.dev/lx-origin/th-monomax01_720/chunks.m3u8
+https://sparkling-river-40f9.tawatchai250958.workers.dev/?url=https://love.sikoyo3159.workers.dev/lx-origin/th-monomax01_720/chunks.m3u8
 #EXTINF:-1 tvg-logo="https://api.bananamuffin.org/images/png/th-monomax01.png" group-title="Dooball",th-monomax01 (Backup 1)
-https://sparkling-river-40f9.tawatchai250958.workers.dev/?url=https://sparkling-river-40f9.tawatchai250958.workers.dev/?url=https://love.tivov68423.workers.dev/lx-origin/th-monomax01_720/chunks.m3u8
+https://sparkling-river-40f9.tawatchai250958.workers.dev/?url=https://love.tivov68423.workers.dev/lx-origin/th-monomax01_720/chunks.m3u8
 #EXTINF:-1 tvg-logo="https://api.bananamuffin.org/images/png/th-monomax01.png" group-title="Dooball",th-monomax01 (Backup 2)
-https://sparkling-river-40f9.tawatchai250958.workers.dev/?url=https://sparkling-river-40f9.tawatchai250958.workers.dev/?url=https://love.tecobo5568.workers.dev/lx-origin/th-monomax01_720/chunks.m3u8
+https://sparkling-river-40f9.tawatchai250958.workers.dev/?url=https://love.tecobo5568.workers.dev/lx-origin/th-monomax01_720/chunks.m3u8
 #EXTINF:-1 tvg-logo="https://api.bananamuffin.org/images/png/th-monomax01.png" group-title="Dooball",th-monomax01 (Backup 3)
 https://sparkling-river-40f9.tawatchai250958.workers.dev/?url=https://love.uh6wzyncw9.workers.dev/lx-origin/th-monomax01_720/chunks.m3u8
 
