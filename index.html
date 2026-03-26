@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOOBALL AUTO</title>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+<style>
+body{margin:0;background:#0b0f1a;color:#fff;font-family:sans-serif}
+.tabs{display:flex;gap:8px;padding:10px;justify-content:center}
+.tab{padding:6px 14px;border-radius:20px;border:none;background:#1f2a44;color:#aaa;cursor:pointer}
+.tab.active{background:#00c853;color:#000}
+.container{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;padding:10px}
+.card{background:#111;border-radius:12px;padding:10px;cursor:pointer}
+.servers button{margin:3px;padding:4px 8px;border:none;border-radius:6px;background:#333;color:#fff}
+#playerBox{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+width:80%;max-width:900px;aspect-ratio:16/9;background:#000;display:none;z-index:9999}
+#playerOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;z-index:9998}
+video{width:100%;height:100%}
+</style>
+</head>
+
+<body>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('today')">วันนี้</button>
+  <button class="tab" onclick="switchTab('tomorrow')">พรุ่งนี้</button>
+  <button class="tab" onclick="switchTab('other')">อื่นๆ</button>
+</div>
+
+<div id="list" class="container"></div>
+
+<div id="playerOverlay" onclick="closePlayer()"></div>
+<div id="playerBox">
+  <video id="video" controls autoplay></video>
+</div>
+
+<script>
+
+// 🔥 ใส่ JSON ของคุณ
+const URL = "https://raw.githubusercontent.com/tiea9999/iptv/main/playlist.json";
+
+let all = [];
+let currentTab = "today";
+
+async function load(){
+  const res = await fetch(URL);
+  all = await res.json();
+  render();
+}
+
+function switchTab(tab){
+  currentTab = tab;
+  document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+  event.target.classList.add("active");
+  render();
+}
+
+function render(){
+  const list = document.getElementById("list");
+  list.innerHTML="";
+
+  all.forEach(ch=>{
+    const card = document.createElement("div");
+    card.className="card";
+
+    card.innerHTML = `
+      <div>${ch.title}</div>
+      <div class="servers">
+        ${ch.servers.map(s=>`
+          <button onclick="event.stopPropagation(); play('${s.url}')">
+            ${s.name}
+          </button>
+        `).join("")}
+      </div>
+    `;
+
+    card.onclick = ()=>play(ch.servers[0].url);
+
+    list.appendChild(card);
+  });
+}
+
+const video = document.getElementById("video");
+
+function play(url){
+  document.getElementById("playerBox").style.display="block";
+  document.getElementById("playerOverlay").style.display="block";
+
+  if(Hls.isSupported()){
+    const hls = new Hls();
+    hls.loadSource(url);
+    hls.attachMedia(video);
+  }else{
+    video.src = url;
+  }
+}
+
+function closePlayer(){
+  document.getElementById("playerBox").style.display="none";
+  document.getElementById("playerOverlay").style.display="none";
+  video.pause();
+}
+
+load();
+
+</script>
+
+</body>
+</html>
