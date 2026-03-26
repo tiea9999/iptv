@@ -1,0 +1,13 @@
+[
+  {
+    "title": "xxx",
+    "group": "Dooball",
+    "logo": "https://...",
+    "servers": [
+      {
+        "name": "Main",
+        "url": "https://....m3u8"
+      }
+    ]
+  }
+]
