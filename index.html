@@ -3,32 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TIEA IPTV - ดูบอล</title>
+<title>TIEA IPTV Auto Main/Backup</title>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 <style>
 body{margin:0;font-family:sans-serif;background:#0b0f1a;color:#fff;}
-.container{max-width:1400px;margin:0 auto;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
-.card{position:relative;border-radius:12px;overflow:hidden;aspect-ratio:16/9;cursor:pointer;background:#1f2a44;transition:.3s;}
+.container{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding:10px;}
+.card{position:relative;background:#1f2a44;border-radius:12px;overflow:hidden;cursor:pointer;transition:.2s;}
 .card:hover{transform:scale(1.02);}
-.bg{position:absolute;inset:0;background:linear-gradient(145deg,#0f172a,#020617);opacity:.8;}
-.overlay-card{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.85),rgba(0,0,0,0));}
-.content{position:absolute;bottom:0;width:100%;padding:8px;z-index:2;}
-.teams{display:flex;justify-content:space-between;font-size:12px;}
-.vs{opacity:.7;margin:0 4px;}
-.servers{margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;}
-.servers button{font-size:11px;padding:4px 8px;border-radius:6px;border:none;background:#2e3b5f;color:#aaa;cursor:pointer;transition:.2s;}
-.servers button:hover{background:#00c853;color:#000;}
-.servers button.active{background:#00c853;color:#000;box-shadow:0 0 6px rgba(0,200,83,.5);}
-#playerOverlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;z-index:9998;}
-#playerBox{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;max-width:1000px;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;display:none;z-index:9999;}
-#video{width:100%;height:100%;}
-.close{position:absolute;top:8px;right:8px;z-index:10000;background:red;color:#fff;padding:4px 8px;border-radius:6px;border:none;cursor:pointer;}
+.channel-logo img{width:100%;height:100px;object-fit:contain;}
+.servers{display:flex;justify-content:center;gap:5px;padding:5px;}
+.servers button{padding:5px 8px;border:none;border-radius:6px;background:#2e3b5f;color:#aaa;cursor:pointer;transition:.2s;}
+.servers button.active{background:#00c853;color:#000;}
+#playerBox{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;max-width:1000px;aspect-ratio:16/9;background:#000;display:none;z-index:9999;border-radius:12px;overflow:hidden;}
+#playerOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;z-index:9998;}
+.close{position:absolute;top:8px;right:8px;z-index:10000;background:red;border:none;color:#fff;padding:4px 8px;border-radius:6px;cursor:pointer;}
+video{width:100%;height:100%;}
 </style>
 </head>
 <body>
 
 <div class="container" id="list"></div>
 <div id="playerOverlay" onclick="closePlayer()"></div>
+
 <div id="playerBox">
     <button class="close" onclick="closePlayer()">X</button>
     <video id="video" controls autoplay></video>
@@ -36,100 +32,77 @@ body{margin:0;font-family:sans-serif;background:#0b0f1a;color:#fff;}
 
 <script>
 const PLAYLIST_URL = "https://raw.githubusercontent.com/tiea9999/iptv/refs/heads/main/playlist.json";
+
 let playlist = [];
-let currentUrl = "";
-let speedCache = {};
+let currentChannelIndex = 0;
 
 async function loadPlaylist(){
-    const res = await fetch(PLAYLIST_URL);
-    playlist = await res.json();
-    render();
+    try{
+        const res = await fetch(PLAYLIST_URL+"?t="+Date.now());
+        playlist = await res.json();
+        renderChannels();
+    }catch(err){
+        console.error("โหลด playlist ไม่ได้:",err);
+    }
 }
 
-function render(){
+function renderChannels(){
     const container = document.getElementById("list");
     container.innerHTML="";
-    playlist.forEach(ch=>{
+    playlist.forEach((ch,chIdx)=>{
         const card = document.createElement("div");
         card.className="card";
         card.innerHTML=`
-            <div class="bg"></div>
-            <div class="overlay-card"></div>
-            <div class="content">
-                <div class="teams">${ch.title}</div>
-                <div class="servers">
-                    ${ch.servers.map((s,i)=>`
-                        <button onclick="event.stopPropagation(); playServer('${encodeURIComponent(s.url)}',this)">${i==0?'HD':'สำรอง'}</button>
-                    `).join("")}
-                </div>
+            <div class="channel-logo"><img src="${ch.logo}" onerror="this.parentElement.style.display='none'"></div>
+            <div class="servers">
+                ${ch.servers.map((s,i)=>`<button onclick="playServer(${chIdx},${i},event)">${i==0?'Main':'Backup '+i}</button>`).join("")}
             </div>
         `;
-        card.onclick = ()=>autoPlay(ch);
         container.appendChild(card);
     });
 }
 
-function playServer(url, btn){
-    url = decodeURIComponent(url);
-    currentUrl = url;
-    showPlayer(url);
-    document.querySelectorAll(".servers button").forEach(b=>b.classList.remove("active"));
-    if(btn) btn.classList.add("active");
-}
+const video = document.getElementById("video");
+function playServer(chIdx,srvIdx,event){
+    event.stopPropagation();
+    const servers = playlist[chIdx].servers;
+    currentChannelIndex = chIdx;
 
-function showPlayer(url){
-    const overlay = document.getElementById("playerOverlay");
-    const box = document.getElementById("playerBox");
-    const video = document.getElementById("video");
-    overlay.style.display="block";
-    box.style.display="block";
-    if(Hls.isSupported()){
-        const hls = new Hls();
-        hls.loadSource(url);
-        hls.attachMedia(video);
-    }else{
-        video.src=url;
+    document.getElementById("playerBox").style.display="block";
+    document.getElementById("playerOverlay").style.display="block";
+
+    // ปุ่ม active
+    document.querySelectorAll(".servers button").forEach(b=>b.classList.remove("active"));
+    event.target.classList.add("active");
+
+    let idx = srvIdx;
+    function tryPlay(){
+        const url = servers[idx]?.url;
+        if(!url) return;
+        if(Hls.isSupported()){
+            const hls = new Hls();
+            hls.loadSource(url);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.ERROR,(event,data)=>{
+                if(data.fatal){idx++; tryPlay();}
+            });
+        }else{
+            video.src=url;
+            video.onerror=()=>{idx++; tryPlay();}
+        }
+        video.play().catch(()=>{idx++; tryPlay();});
     }
-    video.play();
+    tryPlay();
 }
 
 function closePlayer(){
-    const overlay = document.getElementById("playerOverlay");
-    const box = document.getElementById("playerBox");
-    const video = document.getElementById("video");
-    overlay.style.display="none";
-    box.style.display="none";
+    document.getElementById("playerBox").style.display="none";
+    document.getElementById("playerOverlay").style.display="none";
     video.pause();
 }
 
-// 🔥 Auto select fastest server
-async function autoPlay(ch){
-    let fastest = null;
-    let minTime = Infinity;
-    for(const s of ch.servers){
-        if(speedCache[s.url]){
-            if(speedCache[s.url]<minTime){
-                minTime = speedCache[s.url];
-                fastest = s.url;
-            }
-            continue;
-        }
-        const start = performance.now();
-        try{
-            await fetch(s.url,{method:"HEAD",mode:"no-cors"});
-            const t = performance.now()-start;
-            speedCache[s.url]=t;
-            if(t<minTime){
-                minTime=t;
-                fastest=s.url;
-            }
-        }catch(e){
-            continue;
-        }
-    }
-    if(fastest) playServer(fastest);
-}
 loadPlaylist();
 </script>
+
 </body>
 </html>
