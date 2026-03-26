@@ -7,10 +7,6 @@
       {
         "name": "Main",
         "url": "https://xxxxx.m3u8"
-      },
-      {
-        "name": "Backup 1",
-        "url": "https://xxxxx.m3u8"
       }
     ]
   }
