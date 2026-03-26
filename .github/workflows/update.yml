@@ -1,0 +1,32 @@
+name: Update IPTV
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # ทุก 6 ชั่วโมง
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install
+        run: npm install axios
+
+      - name: Run script
+        run: node generate.js
+
+      - name: Commit
+        run: |
+          git config --global user.name "bot"
+          git config --global user.email "bot@example.com"
+          git add .
+          git commit -m "auto update"
+          git push
