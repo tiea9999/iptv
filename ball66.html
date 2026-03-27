@@ -2,115 +2,94 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>หรรมน้อย ออนไลน์</title>
-
+<title>Tiea IPTV Sports</title>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-
 <style>
-/* (ตัด style เดิมไว้ครบ) */
 body{margin:0;background:#0b0f1a;color:#fff;font-family:sans-serif;}
-.container{max-width:1400px;margin:0 auto;padding:10px 16px;}
-.section-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;padding:10px;}
-.card{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:16/9;cursor:pointer;background:rgba(255,255,255,0.06);}
+.container{max-width:1400px;margin:0 auto;padding:10px;}
+.card{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:16/9;margin:10px;background:#111;cursor:pointer;}
+.card img{height:85px;}
+.servers button{padding:5px 10px;margin:2px;border-radius:10px;border:none;cursor:pointer;}
 #playerBox{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;max-width:1000px;aspect-ratio:16/9;background:#000;display:none;z-index:9999;}
 #playerOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;z-index:9998;}
 video{width:100%;height:100%;}
+.close{position:absolute;top:8px;right:8px;background:red;color:#fff;border:none;padding:4px 8px;border-radius:6px;cursor:pointer;}
 </style>
 </head>
-
 <body>
-
 <div id="list" class="container"></div>
 <div id="playerOverlay" onclick="closePlayer()"></div>
-
 <div id="playerBox">
-    <button onclick="closePlayer()">X</button>
-    <video id="video" controls autoplay></video>
+  <button class="close" onclick="closePlayer()">X</button>
+  <video id="video" controls autoplay></video>
 </div>
 
 <script>
+const URL_LIST = "https://sparkling-river-40f9.tawatchai250958.workers.dev/list";
+let currentUrl = "";
 
-// 🔥 เปลี่ยนตรงนี้แล้ว
-const URL = "https://sparkling-river-40f9.tawatchai250958.workers.dev/list";
+async function loadList(){
+  const res = await fetch(URL_LIST);
+  const json = await res.json();
+  const container = document.getElementById("list");
+  container.innerHTML = "";
 
-let all = [];
+  json.groups.forEach(m=>{
+    const card = document.createElement("div");
+    card.className="card";
 
-async function load(){
-    const res = await fetch(URL);
-    const json = await res.json();
-    all = parse(json);
-    render();
-}
+    let serversHtml = (m.stations||[]).map((s,i)=>`<button data-url="${s.url}">${i==0?'HD':'สำรอง'}</button>`).join("");
+    card.innerHTML = `<img src="${m.image}" onerror="this.remove();">${m.name}<div class="servers">${serversHtml}</div>`;
 
-function parse(data){
-    let arr=[];
+    // click card → auto fastest
+    card.onclick = ()=>playFastest(m.stations);
 
-    for(const g of data.groups){
-        arr.push({
-            title:g.name,
-            servers:g.stations
-        });
-    }
-
-    return arr;
-}
-
-function render(){
-    const list = document.getElementById("list");
-    list.innerHTML="";
-
-    all.forEach(m=>{
-        const card = document.createElement("div");
-        card.className="card";
-
-        card.innerHTML = `
-            <div style="padding:10px">${m.title}</div>
-            <div>
-                ${(m.servers||[]).map((s,i)=>`
-                    <button data-url="${s.url}">${i==0?'HD':'สำรอง'}</button>
-                `).join("")}
-            </div>
-        `;
-
-        card.onclick = ()=>play(m.servers?.[0]?.url);
-
-        const buttons = card.querySelectorAll("button");
-        buttons.forEach(btn=>{
-            btn.addEventListener("click", (e)=>{
-                e.stopPropagation();
-                play(btn.dataset.url);
-            });
-        });
-
-        list.appendChild(card);
+    // individual server buttons
+    const btns = card.querySelectorAll("button");
+    btns.forEach(btn=>{
+      btn.addEventListener("click", e=>{
+        e.stopPropagation();
+        play(btn.dataset.url);
+      });
     });
+
+    container.appendChild(card);
+  });
 }
 
 const video=document.getElementById("video");
-
 function play(url){
-    document.getElementById("playerBox").style.display="block";
-    document.getElementById("playerOverlay").style.display="block";
-
-    if(Hls.isSupported()){
-        const hls=new Hls();
-        hls.loadSource(url);
-        hls.attachMedia(video);
-    }else{
-        video.src=url;
-    }
+  currentUrl = url;
+  document.getElementById("playerBox").style.display="block";
+  document.getElementById("playerOverlay").style.display="block";
+  if(Hls.isSupported()){
+    const hls=new Hls();
+    hls.loadSource(url);
+    hls.attachMedia(video);
+  }else{ video.src=url; }
 }
 
 function closePlayer(){
-    document.getElementById("playerBox").style.display="none";
-    document.getElementById("playerOverlay").style.display="none";
-    video.pause();
+  document.getElementById("playerBox").style.display="none";
+  document.getElementById("playerOverlay").style.display="none";
+  video.pause();
 }
 
-load();
+// 🔥 เลือก server ที่เร็วที่สุด
+async function playFastest(servers){
+  for(let s of servers){
+    try{
+      const res = await fetch(s.url, {method:"HEAD"});
+      if(res.ok){
+        play(s.url);
+        return;
+      }
+    }catch(e){ console.log("Server down:", s.url); }
+  }
+  alert("ไม่มี server เล่นได้");
+}
 
+loadList();
 </script>
-
 </body>
 </html>
